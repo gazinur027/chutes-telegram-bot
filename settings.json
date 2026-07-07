@@ -1,0 +1,27 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}\\venv\\Scripts\\python.exe",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        },
+        "Command Prompt": {
+            "path": "cmd.exe",
+            "icon": "terminal-cmd"
+        }
+    },
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "files.associations": {
+        "*.env": "ini"
+    },
+    "files.eol": "\n"
+}

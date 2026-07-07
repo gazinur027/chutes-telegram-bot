@@ -1,0 +1,15 @@
+﻿{
+    "version":  "0.2.0",
+    "configurations":  [
+                           {
+                               "justMyCode":  true,
+                               "program":  "${workspaceFolder}\\main.py",
+                               "request":  "launch",
+                               "console":  "integratedTerminal",
+                               "name":  "Python: Запуск бота",
+                               "type":  "debugpy",
+                               "envFile":  "${workspaceFolder}\\\\.env",
+                               "cwd":  "${workspaceFolder}"
+                           }
+                       ]
+}

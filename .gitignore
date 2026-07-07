@@ -1,0 +1,15 @@
+﻿__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+.env
+*.log
+.DS_Store
+Thumbs.db
