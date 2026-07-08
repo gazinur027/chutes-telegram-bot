@@ -182,18 +182,18 @@ def main() -> None:
     4. Запускаем polling (опрос серверов Telegram)
     """
     # Проверка обязательных переменных
-    token = os.getenv("BOT_TOKEN")
-    if not token:
-        logger.error("❌ Не найден BOT_TOKEN в переменных окружения!")
-        logger.error("Создай .env файл с BOT_TOKEN='твой_токен'")
-        raise ValueError("Missing BOT_TOKEN")
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not TELEGRAM_BOT_TOKEN:
+        logger.error("❌ Не найден TELEGRAM_BOT_TOKEN в переменных окружения!")
+        logger.error("Создай .env файл с TELEGRAM_BOT_TOKEN='твой_токен'")
+        raise ValueError("Missing TELEGRAM_BOT_TOKEN")
 
     if not CHUTES_API_KEY:
         logger.warning("⚠️ CHUTES_API_KEY не установлен — AI не будет работать")
         logger.warning("Бот будет отвечать эхом. Настрой ключ в .env")
     
     # Создаём приложение
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     # Регистрируем обработчики:
     # /start — приветствие
