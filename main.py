@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Это значит, что мы отправляем те же payload, что и в OpenAI API
 CHUTES_API_URL = os.getenv("CHUTES_API_URL", "https://llm.chutes.ai/v1/chat/completions")
 CHUTES_API_KEY = os.getenv("CHUTES_API_KEY", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "default-model")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
 # ========================================
 # ЭТАП 4: Хранилище истории диалога
