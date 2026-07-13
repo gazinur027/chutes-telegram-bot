@@ -153,21 +153,8 @@ async def handle_message(update: dict) -> None:
 
 
 # ========================================
-# ЭТАП 8: Точка входа
+# ЭТАП 8: Основной цикл polling
 # ========================================
-def main() -> None:
-    """Запуск бота."""
-    if not BOT_TOKEN:
-        logger.error("❌ Не найден BOT_TOKEN в переменных окружения!")
-        raise ValueError("Missing BOT_TOKEN")
-
-    if not CHUTES_API_KEY:
-        logger.warning("⚠️ CHUTES_API_KEY не установлен — AI не будет работать")
-
-    logger.info("🚀 Бот запущен! Подключено к Telegram и Chutes AI")
-    await run_bot()
-
-
 async def run_bot() -> None:
     """Основной цикл polling."""
     offset = None
@@ -190,6 +177,22 @@ async def run_bot() -> None:
         except Exception as e:
             logger.error(f"Polling error: {e}")
             await asyncio.sleep(1)
+
+
+# ========================================
+# ЭТАП 9: Точка входа
+# ========================================
+async def main() -> None:
+    """Запуск бота."""
+    if not BOT_TOKEN:
+        logger.error("❌ Не найден BOT_TOKEN в переменных окружения!")
+        raise ValueError("Missing BOT_TOKEN")
+
+    if not CHUTES_API_KEY:
+        logger.warning("⚠️ CHUTES_API_KEY не установлен — AI не будет работать")
+
+    logger.info("🚀 Бот запущен! Подключено к Telegram и Chutes AI")
+    await run_bot()
 
 
 if __name__ == "__main__":
