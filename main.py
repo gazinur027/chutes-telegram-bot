@@ -1,21 +1,12 @@
 import logging
 import os
 import aiohttp
+import asyncio
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
 
 # ========================================
 # ЭТАП 1: Загрузка переменных окружения
 # ========================================
-# .env файл содержит чувствительные данные (токены, ключи)
-# и не должен попадать в git-репозиторий
 load_dotenv()
 
 # ========================================
@@ -30,17 +21,14 @@ logger = logging.getLogger(__name__)
 # ========================================
 # ЭТАП 3: Константы Chutes AI
 # ========================================
-# Chutes API использует OpenAI-compatible формат запросов
-# Это значит, что мы отправляем те же payload, что и в OpenAI API
 CHUTES_API_URL = os.getenv("CHUTES_API_URL", "https://llm.chutes.ai/v1/chat/completions")
 CHUTES_API_KEY = os.getenv("CHUTES_API_KEY", "")
 MODEL_NAME = os.getenv("MODEL_NAME", "default")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
 # ========================================
 # ЭТАП 4: Хранилище истории диалога
 # ========================================
-# Словарь: user_id -> список сообщений (контекст беседы)
-# Позволяет боту "помнить" предыдущие сообщения
 chat_histories: dict[int, list[dict]] = {}
 
 
@@ -48,30 +36,13 @@ chat_histories: dict[int, list[dict]] = {}
 # ЭТАП 5: Функция обращения к Chutes AI
 # ========================================
 async def get_ai_response(user_message: str) -> str:
-    """
-    Отправляет сообщение в Chutes API и получает ответ.
-    
-    Использует OpenAI-compatible формат:
-    - endpoint: /v1/chat/completions
-    - payload: {model, messages, max_tokens, temperature}
-    - auth: Bearer token через заголовок Authorization
-    
-    Args:
-        user_message: Текст сообщения от пользователя
-        
-    Returns:
-        Ответ от AI или текст ошибки
-    """
-    # Формируем историю диалога для контекста
-    # Chutes API принимает messages в формате:
-    # [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+    """Отправляет сообщение в Chutes API и получает ответ."""
     messages = [
         {"role": "system", "content": "Ты полезный ассистент. Отвечай на русском языке кратко и по делу."},
-        *chat_histories.get(0, []),  # Используем user_id=0 как глобальный контекст
+        *chat_histories.get(0, []),
         {"role": "user", "content": user_message},
     ]
 
-    # Формируем HTTP-запрос к Chutes API
     headers = {
         "Authorization": f"Bearer {CHUTES_API_KEY}",
         "Content-Type": "application/json",
@@ -84,7 +55,6 @@ async def get_ai_response(user_message: str) -> str:
     }
 
     try:
-        # Используем aiohttp для асинхронного запроса
         async with aiohttp.ClientSession() as session:
             async with session.post(CHUTES_API_URL, json=payload, headers=headers) as resp:
                 if resp.status != 200:
@@ -93,12 +63,8 @@ async def get_ai_response(user_message: str) -> str:
                     return "😅 Произошла ошибка при обработке запроса. Попробуй позже."
                 
                 data = await resp.json()
-                
-                # Извлекаем ответ из стандартного формата OpenAI
-                # Структура: {"choices": [{"message": {"content": "..."}}]}
                 assistant_message = data["choices"][0]["message"]["content"]
                 
-                # Обновляем историю диалога (сохраняем контекст)
                 if 0 not in chat_histories:
                     chat_histories[0] = []
                 chat_histories[0].append({"role": "user", "content": user_message})
@@ -115,100 +81,116 @@ async def get_ai_response(user_message: str) -> str:
 
 
 # ========================================
-# ЭТАП 6: Обработчики Telegram-команд
+# ЭТАП 6: Telegram Bot API (чистый aiohttp)
 # ========================================
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Обработчик команды /start
-    Приветствует пользователя и объясняет возможности бота
-    """
-    user = update.effective_user
-    await update.message.reply_html(
-        f"Привет, {user.mention_html()}! 👋\n\n"
-        f"Я чат-бот с AI от Chutes. "
-        f"Напиши мне что-нибудь, и я отвечу! 🤖"
-    )
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Обработчик команды /help
-    Показывает справку по использованию
-    """
-    await update.message.reply_text(
-        "📖 Справка:\n\n"
-        "• Просто пиши сообщения — я отвечу с помощью AI\n"
-        "• /start — начать общение\n"
-        "• /help — показать эту справку"
-    )
+async def tg_request(method: str, data: dict = None) -> dict:
+    """Отправляет запрос к Telegram Bot API."""
+    url = f"{TELEGRAM_API_URL}/{method}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=data) as resp:
+                if resp.status != 200:
+                    logger.error(f"Telegram API error: {resp.status}")
+                    return {}
+                return await resp.json()
+    except Exception as e:
+        logger.error(f"Telegram request error: {e}")
+        return {}
 
 
-async def chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    ОБРАБОТЧИК СООБЩЕНИЙ — заменяет старый echo()
-    
-    1. Получает текст от пользователя
-    2. Отправляет его в Chutes AI
-    3. Возвращает ответ от AI
-    """
-    user_message = update.message.text
-    user_id = update.effective_user.id
-    
-    logger.info(f"Сообщение от @{user_id}: {user_message}")
-    
-    # Отправляем индикатор "печатает..."
-    await context.bot.send_chat_action(
-        chat_id=update.effective_chat.id,
-        action="typing",  # Показывает анимацию набора текста
-    )
-    
-    # Получаем ответ от AI
-    ai_response = await get_ai_response(user_message)
-    
-    # Отправляем ответ пользователю
-    await update.message.reply_text(ai_response, parse_mode="HTML")
+async def send_message(chat_id: int, text: str) -> bool:
+    """Отправляет сообщение пользователю."""
+    result = await tg_request("sendMessage", {"chat_id": chat_id, "text": text})
+    return bool(result.get("ok"))
+
+
+async def get_updates(offset: int = None) -> list:
+    """Получает обновления от Telegram."""
+    data = {"timeout": 0}
+    if offset is not None:
+        data["offset"] = offset
+    result = await tg_request("getUpdates", data)
+    return result.get("result", [])
 
 
 # ========================================
-# ЭТАП 7: Точка входа — запуск бота
+# ЭТАП 7: Обработка сообщений
+# ========================================
+async def handle_message(update: dict) -> None:
+    """Обрабатывает одно сообщение."""
+    message = update.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    text = message.get("text", "")
+    message_id = message.get("message_id")
+
+    if not text:
+        return
+
+    # Команда /start
+    if text == "/start":
+        await send_message(chat_id, 
+            f"Привет! 👋\n\n"
+            f"Я чат-бот с AI от Chutes. "
+            f"Напиши мне что-нибудь, и я отвечу! 🤖")
+        return
+
+    # Команда /help
+    if text == "/help":
+        await send_message(chat_id,
+            "📖 Справка:\n\n"
+            "• Просто пиши сообщения — я отвечу с помощью AI\n"
+            "• /start — начать общение\n"
+            "• /help — показать эту справку")
+        return
+
+    # Обычный текст — AI-ответ
+    await send_message(chat_id, "🤖 Думаю...")
+    ai_response = await get_ai_response(text)
+    await send_message(chat_id, ai_response)
+
+
+# ========================================
+# ЭТАП 8: Точка входа
 # ========================================
 def main() -> None:
-    """
-    Настройка и запуск Telegram-бота:
-    1. Проверяем обязательные переменные окружения
-    2. Создаём Application из python-telegram-bot
-    3. Регистрируем обработчики команд и сообщений
-    4. Запускаем polling (опрос серверов Telegram)
-    """
-    # Проверка обязательных переменных
-    token = os.getenv("BOT_TOKEN")
-    if not token:
+    """Запуск бота."""
+    if not BOT_TOKEN:
         logger.error("❌ Не найден BOT_TOKEN в переменных окружения!")
-        logger.error("Создай .env файл с BOT_TOKEN='твой_токен'")
         raise ValueError("Missing BOT_TOKEN")
 
     if not CHUTES_API_KEY:
         logger.warning("⚠️ CHUTES_API_KEY не установлен — AI не будет работать")
-        logger.warning("Бот будет отвечать эхом. Настрой ключ в .env")
-    
-    # Создаём приложение
-    app = Application.builder().token(token).build()
 
-    # Регистрируем обработчики:
-    # /start — приветствие
-    app.add_handler(CommandHandler("start", start))
-    
-    # /help — справка
-    app.add_handler(CommandHandler("help", help_command))
-    
-    # Все обычные текстовые сообщения (не команды) -> AI-ответ
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat_handler))
-    
-    # Запуск бота
     logger.info("🚀 Бот запущен! Подключено к Telegram и Chutes AI")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    await run_bot()
+
+
+async def run_bot() -> None:
+    """Основной цикл polling."""
+    offset = None
+    last_update_id = 0
+
+    while True:
+        try:
+            updates = await get_updates(offset)
+            
+            for update in updates:
+                last_update_id = update.get("update_id", last_update_id) + 1
+                offset = last_update_id
+                await handle_message(update)
+
+            await asyncio.sleep(0.5)
+
+        except asyncio.CancelledError:
+            logger.info("Bot stopped")
+            break
+        except Exception as e:
+            logger.error(f"Polling error: {e}")
+            await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
