@@ -103,6 +103,12 @@ async def tg_request(method: str, data: dict = None) -> dict:
         return {}
 
 
+async def delete_webhook():
+    """Сбрасывает webhook Telegram."""
+    logger.info("Сброс webhook...")
+    await tg_request("deleteWebhook")
+
+
 async def send_message(chat_id: int, text: str) -> bool:
     """Отправляет сообщение пользователю."""
     result = await tg_request("sendMessage", {"chat_id": chat_id, "text": text})
@@ -209,6 +215,9 @@ def main():
 
     app = web.Application()
     app.router.add_get("/", health_check)
+
+    # Сбрасываем webhook перед polling
+    asyncio.create_task(delete_webhook())
 
     # Запускаем polling в отдельном потоке
     import threading
