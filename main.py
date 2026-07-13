@@ -2,6 +2,7 @@ import logging
 import os
 import aiohttp
 import asyncio
+from aiohttp import web
 from dotenv import load_dotenv
 
 # ========================================
@@ -25,6 +26,7 @@ CHUTES_API_URL = os.getenv("CHUTES_API_URL", "https://llm.chutes.ai/v1/chat/comp
 CHUTES_API_KEY = os.getenv("CHUTES_API_KEY", "")
 MODEL_NAME = os.getenv("MODEL_NAME", "default")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+PORT = int(os.getenv("PORT", "8080"))
 
 # ========================================
 # ЭТАП 4: Хранилище истории диалога
@@ -153,8 +155,13 @@ async def handle_message(update: dict) -> None:
 
 
 # ========================================
-# ЭТАП 8: Основной цикл polling
+# ЭТАП 9: HTTP-сервер + polling
 # ========================================
+async def health_check(request):
+    """Проверка, что бот жив."""
+    return web.Response(text="OK")
+
+
 async def run_bot() -> None:
     """Основной цикл polling."""
     offset = None
@@ -179,11 +186,8 @@ async def run_bot() -> None:
             await asyncio.sleep(1)
 
 
-# ========================================
-# ЭТАП 9: Точка входа
-# ========================================
-async def main() -> None:
-    """Запуск бота."""
+def start_bot():
+    """Запуск бота (в отдельном потоке)."""
     if not BOT_TOKEN:
         logger.error("❌ Не найден BOT_TOKEN в переменных окружения!")
         raise ValueError("Missing BOT_TOKEN")
@@ -192,8 +196,28 @@ async def main() -> None:
         logger.warning("⚠️ CHUTES_API_KEY не установлен — AI не будет работать")
 
     logger.info("🚀 Бот запущен! Подключено к Telegram и Chutes AI")
-    await run_bot()
+    asyncio.run(run_bot())
+
+
+def main():
+    """Запуск HTTP-сервера + polling в потоке."""
+    if not BOT_TOKEN:
+        logger.error("❌ Не найден BOT_TOKEN в переменных окружения!")
+        raise ValueError("Missing BOT_TOKEN")
+
+    logger.info("🚀 Telegram бот запущен! Порт: %s", PORT)
+
+    app = web.Application()
+    app.router.add_get("/", health_check)
+
+    # Запускаем polling в отдельном потоке
+    import threading
+    bot_thread = threading.Thread(target=start_bot, daemon=True)
+    bot_thread.start()
+
+    # Запускаем HTTP-сервер
+    web.run_app(app, host="0.0.0.0", port=PORT)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
