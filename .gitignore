@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -13,3 +13,7 @@ ENV/
 *.log
 .DS_Store
 Thumbs.db
+build/
+dist/
+.eggs/
+*.egg
