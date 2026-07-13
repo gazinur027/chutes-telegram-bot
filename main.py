@@ -28,13 +28,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ========================================
-# ЭТАП 3: Константы Groq
+# ЭТАП 3: Константы Chutes AI
 # ========================================
-# Groq API использует OpenAI-compatible формат запросов
+# Chutes API использует OpenAI-compatible формат запросов
 # Это значит, что мы отправляем те же payload, что и в OpenAI API
-GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+CHUTES_API_URL = os.getenv("CHUTES_API_URL", "https://llm.chutes.ai/v1/chat/completions")
+CHUTES_API_KEY = os.getenv("CHUTES_API_KEY", "")
+MODEL_NAME = os.getenv("MODEL_NAME", "default")
 
 # ========================================
 # ЭТАП 4: Хранилище истории диалога
@@ -45,11 +45,11 @@ chat_histories: dict[int, list[dict]] = {}
 
 
 # ========================================
-# ЭТАП 5: Функция обращения к Groq AI
+# ЭТАП 5: Функция обращения к Chutes AI
 # ========================================
 async def get_ai_response(user_message: str) -> str:
     """
-    Отправляет сообщение в Groq API и получает ответ.
+    Отправляет сообщение в Chutes API и получает ответ.
     
     Использует OpenAI-compatible формат:
     - endpoint: /v1/chat/completions
@@ -63,7 +63,7 @@ async def get_ai_response(user_message: str) -> str:
         Ответ от AI или текст ошибки
     """
     # Формируем историю диалога для контекста
-    # Groq API принимает messages в формате:
+    # Chutes API принимает messages в формате:
     # [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
     messages = [
         {"role": "system", "content": "Ты полезный ассистент. Отвечай на русском языке кратко и по делу."},
@@ -73,7 +73,7 @@ async def get_ai_response(user_message: str) -> str:
 
     # Формируем HTTP-запрос к Chutes API
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {CHUTES_API_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -86,7 +86,7 @@ async def get_ai_response(user_message: str) -> str:
     try:
         # Используем aiohttp для асинхронного запроса
         async with aiohttp.ClientSession() as session:
-            async with session.post(GROQ_API_URL, json=payload, headers=headers) as resp:
+            async with session.post(CHUTES_API_URL, json=payload, headers=headers) as resp:
                 if resp.status != 200:
                     error_text = await resp.text()
                     logger.error(f"Chutes API error: {resp.status} - {error_text}")
@@ -182,18 +182,18 @@ def main() -> None:
     4. Запускаем polling (опрос серверов Telegram)
     """
     # Проверка обязательных переменных
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not TELEGRAM_BOT_TOKEN:
-        logger.error("❌ Не найден TELEGRAM_BOT_TOKEN в переменных окружения!")
-        logger.error("Создай .env файл с TELEGRAM_BOT_TOKEN='твой_токен'")
-        raise ValueError("Missing TELEGRAM_BOT_TOKEN")
+    token = os.getenv("BOT_TOKEN")
+    if not token:
+        logger.error("❌ Не найден BOT_TOKEN в переменных окружения!")
+        logger.error("Создай .env файл с BOT_TOKEN='твой_токен'")
+        raise ValueError("Missing BOT_TOKEN")
 
-    if not GROQ_API_KEY:
-        logger.warning("⚠️ GROQ_API_KEY не установлен — AI не будет работать")
+    if not CHUTES_API_KEY:
+        logger.warning("⚠️ CHUTES_API_KEY не установлен — AI не будет работать")
         logger.warning("Бот будет отвечать эхом. Настрой ключ в .env")
     
     # Создаём приложение
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app = Application.builder().token(token).build()
 
     # Регистрируем обработчики:
     # /start — приветствие
